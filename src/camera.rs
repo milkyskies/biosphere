@@ -58,9 +58,9 @@ fn handle_panning(
     mut cursor_moved_events: EventReader<CursorMoved>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     cursor_window_position: Res<CursorWindowPosition>,
-    mut query: Query<(&mut Transform, &mut CameraPan), With<MainCamera>>,
+    mut query: Query<(&mut Transform, &mut CameraPan, &CameraZoom), With<MainCamera>>,
 ) {
-    let (mut transform, mut camera_pan) = query.single_mut();
+    let (mut transform, mut camera_pan, zoom) = query.single_mut();
 
     if mouse_button_input.just_pressed(MouseButton::Left) {
         camera_pan.is_panning = true;
@@ -74,8 +74,8 @@ fn handle_panning(
     if camera_pan.is_panning {
         for event in cursor_moved_events.read() {
             let delta = event.position - camera_pan.last_position;
-            transform.translation.x -= delta.x;
-            transform.translation.y += delta.y;
+            transform.translation.x -= delta.x * zoom.0;
+            transform.translation.y += delta.y * zoom.0;
             camera_pan.last_position = event.position;
         }
     }
