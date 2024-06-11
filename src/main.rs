@@ -58,7 +58,7 @@ fn setup(
         ..default()
     });
 
-    (0..1000000).for_each(|_| {
+    (0..50000).for_each(|_| {
         let rand_direction = Vec3::new(
             rand::random::<f32>() * 2.0 - 1.0,
             rand::random::<f32>() * 2.0 - 1.0,
