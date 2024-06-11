@@ -1,5 +1,6 @@
 use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
+    pbr::ClusterConfig,
     prelude::*,
     window::PrimaryWindow,
 };
@@ -29,17 +30,20 @@ impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(CursorWindowPosition::default())
             .add_systems(Startup, setup_camera)
-            .add_systems(Update, (cursor_system, handle_zoom));
-        // .add_systems(Update, (handle_zoom, handle_panning, cursor_system));
+            // .add_systems(Update, (cursor_system, handle_zoom))
+            .add_systems(Update, (handle_zoom, handle_panning, cursor_system));
     }
 }
 
 fn setup_camera(mut commands: Commands) {
     commands
-        .spawn(Camera3dBundle {
-            transform: Transform::from_xyz(-3.0, 5.0, 100.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..default()
-        })
+        .spawn((
+            Camera3dBundle {
+                transform: Transform::from_xyz(-3.0, 5.0, 100.0).looking_at(Vec3::ZERO, Vec3::Y),
+                ..default()
+            },
+            ClusterConfig::Single,
+        ))
         .insert(MainCamera)
         .insert(CameraZoom {
             distance: 10.0,
@@ -66,33 +70,38 @@ fn handle_zoom(
     }
 }
 
-// fn handle_panning(
-//     mut query: Query<(&mut Transform, &mut CameraPan), With<MainCamera>>,
-//     mut mouse_motion_events: EventReader<MouseMotion>,
-//     cursor_window_position: Res<CursorWindowPosition>,
-//     mouse_button_input: Res<ButtonInput<MouseButton>>,
-// ) {
-//     for (mut transform, mut pan) in query.iter_mut() {
-//         if mouse_button_input.pressed(MouseButton::Right) {
-//             if !pan.is_panning {
-//                 pan.is_panning = true;
-//                 pan.last_position = cursor_window_position.0;
-//             } else {
-//                 if let Some(cursor_position) = cursor_window_position.0 {
-//                     let delta = cursor_position - pan.last_position;
-//                     let rotation_speed = 0.003;
-//                     let yaw = Quat::from_rotation_y(-delta.x * rotation_speed);
-//                     let pitch = Quat::from_rotation_x(-delta.y * rotation_speed);
-//                     transform.rotation = yaw * transform.rotation; // Yaw around global Y axis
-//                     transform.rotation = transform.rotation * pitch; // Pitch around local X axis
-//                     pan.last_position = cursor_position;
-//                 }
-//             }
-//         } else {
-//             pan.is_panning = false;
-//         }
-//     }
-// }
+fn handle_panning(
+    mut query: Query<(&mut Transform, &mut CameraPan), With<MainCamera>>,
+    mut mouse_motion_events: EventReader<MouseMotion>,
+    cursor_window_position: Res<CursorWindowPosition>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+) {
+    for (mut transform, mut pan) in query.iter_mut() {
+        if mouse_button_input.pressed(MouseButton::Left) {
+            if !pan.is_panning {
+                pan.is_panning = true;
+                pan.last_position = cursor_window_position.0;
+            } else {
+                let cursor_position = cursor_window_position.0;
+                let delta = cursor_position - pan.last_position;
+                let rotation_speed = 0.003;
+
+                // Calculate spherical rotation
+                let yaw = Quat::from_rotation_y(-delta.x * rotation_speed);
+                let pitch = Quat::from_rotation_x(-delta.y * rotation_speed);
+
+                // Apply rotation to the camera's transform
+                transform.rotation = yaw * transform.rotation; // Yaw around global Y axis
+                transform.rotation = transform.rotation * pitch; // Pitch around local X axis
+
+                // Update the last position for the next frame
+                pan.last_position = cursor_position;
+            }
+        } else {
+            pan.is_panning = false;
+        }
+    }
+}
 
 fn cursor_system(
     mut cursor_window_position: ResMut<CursorWindowPosition>,

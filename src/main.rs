@@ -1,6 +1,11 @@
 use bevy::{
-    input::mouse::MouseWheel, math::primitives::Sphere, prelude::*, render::mesh::shape,
-    sprite::MaterialMesh2dBundle, window::PrimaryWindow,
+    input::mouse::MouseWheel,
+    math::primitives::Sphere,
+    pbr::{NotShadowCaster, NotShadowReceiver},
+    prelude::*,
+    render::mesh::shape,
+    sprite::MaterialMesh2dBundle,
+    window::PrimaryWindow,
 };
 
 mod camera;
@@ -42,23 +47,18 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    commands.insert_resource(AmbientLight {
+        color: Color::WHITE,
+        brightness: 5000.0,
+    });
+
     let organism_mesh_handle = meshes.add(Mesh::from(Sphere { radius: 0.5 }));
     let organism_material_handle = materials.add(StandardMaterial {
         base_color: ORGANISM_COLOR,
         ..default()
     });
 
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            color: Color::WHITE,
-            illuminance: 10000.0, // Adjust the illuminance as needed
-            ..default()
-        },
-        transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4)),
-        ..default()
-    });
-
-    (0..5000).for_each(|_| {
+    (0..1000000).for_each(|_| {
         let rand_direction = Vec3::new(
             rand::random::<f32>() * 2.0 - 1.0,
             rand::random::<f32>() * 2.0 - 1.0,
@@ -69,13 +69,17 @@ fn setup(
         let position = rand_direction * rand_distance;
 
         commands
-            .spawn(PbrBundle {
-                mesh: organism_mesh_handle.clone(),
-                material: organism_material_handle.clone(),
-                transform: Transform::from_translation(position)
-                    .with_scale(Vec3::splat(rand::random::<f32>() * 0.5 + 0.5)),
-                ..default()
-            })
+            .spawn((
+                PbrBundle {
+                    mesh: organism_mesh_handle.clone(),
+                    material: organism_material_handle.clone(),
+                    transform: Transform::from_translation(position)
+                        .with_scale(Vec3::splat(rand::random::<f32>() * 0.5 + 0.5)),
+                    ..default()
+                },
+                NotShadowCaster,
+                NotShadowReceiver,
+            ))
             .insert(Organism)
             .insert(Velocity(
                 rand_direction * (rand::random::<f32>() * 2.0 - 1.0),
