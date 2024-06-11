@@ -1,19 +1,24 @@
-use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
+use bevy::{
+    input::mouse::{MouseMotion, MouseWheel},
+    prelude::*,
+    window::PrimaryWindow,
+};
 
 #[derive(Component)]
 struct MainCamera;
 
 #[derive(Component)]
-struct CameraZoom(f32);
+struct CameraZoom {
+    distance: f32,
+    min_distance: f32,
+    max_distance: f32,
+}
 
 #[derive(Component)]
 struct CameraPan {
-    is_panning: bool,
     last_position: Vec2,
+    is_panning: bool,
 }
-
-#[derive(Resource, Default)]
-struct CursorWorldPosition(Vec2);
 
 #[derive(Resource, Default)]
 struct CursorWindowPosition(Vec2);
@@ -22,82 +27,80 @@ pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(CursorWorldPosition::default())
-            .insert_resource(CursorWindowPosition::default())
+        app.insert_resource(CursorWindowPosition::default())
             .add_systems(Startup, setup_camera)
-            .add_systems(Update, (handle_zoom, handle_panning, cursor_system));
+            .add_systems(Update, (cursor_system, handle_zoom));
+        // .add_systems(Update, (handle_zoom, handle_panning, cursor_system));
     }
 }
 
 fn setup_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera2dBundle::default(),
-        MainCamera,
-        CameraZoom(1.0),
-        CameraPan {
+    commands
+        .spawn(Camera3dBundle {
+            transform: Transform::from_xyz(-3.0, 5.0, 100.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        })
+        .insert(MainCamera)
+        .insert(CameraZoom {
+            distance: 10.0,
+            min_distance: 5.0,
+            max_distance: 5000.0,
+        })
+        .insert(CameraPan {
+            last_position: Vec2::ZERO,
             is_panning: false,
-            last_position: Vec2::new(0.0, 0.0),
-        },
-    ));
+        });
 }
 
 fn handle_zoom(
-    mut query: Query<(&mut Transform, &mut CameraZoom), With<Camera>>,
+    mut query: Query<(&mut Transform, &mut CameraZoom), With<MainCamera>>,
     mut scroll_evr: EventReader<MouseWheel>,
 ) {
     for ev in scroll_evr.read() {
-        for (mut transform, mut zoom) in &mut query {
-            zoom.0 *= 1.0 - ev.y * 0.1;
-            zoom.0 = zoom.0.clamp(0.1, 10.0);
-            transform.scale = Vec3::splat(zoom.0);
+        for (mut transform, mut zoom) in query.iter_mut() {
+            let new_distance =
+                (zoom.distance - ev.y * 12.0).clamp(zoom.min_distance, zoom.max_distance);
+            transform.translation = transform.translation.normalize() * new_distance;
+            zoom.distance = new_distance;
         }
     }
 }
 
-fn handle_panning(
-    mut cursor_moved_events: EventReader<CursorMoved>,
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
-    cursor_window_position: Res<CursorWindowPosition>,
-    mut query: Query<(&mut Transform, &mut CameraPan, &CameraZoom), With<MainCamera>>,
-) {
-    let (mut transform, mut camera_pan, zoom) = query.single_mut();
-
-    if mouse_button_input.just_pressed(MouseButton::Left) {
-        camera_pan.is_panning = true;
-        camera_pan.last_position = cursor_window_position.0;
-    }
-
-    if mouse_button_input.just_released(MouseButton::Left) {
-        camera_pan.is_panning = false;
-    }
-
-    if camera_pan.is_panning {
-        for event in cursor_moved_events.read() {
-            let delta = event.position - camera_pan.last_position;
-            transform.translation.x -= delta.x * zoom.0;
-            transform.translation.y += delta.y * zoom.0;
-            camera_pan.last_position = event.position;
-        }
-    }
-}
+// fn handle_panning(
+//     mut query: Query<(&mut Transform, &mut CameraPan), With<MainCamera>>,
+//     mut mouse_motion_events: EventReader<MouseMotion>,
+//     cursor_window_position: Res<CursorWindowPosition>,
+//     mouse_button_input: Res<ButtonInput<MouseButton>>,
+// ) {
+//     for (mut transform, mut pan) in query.iter_mut() {
+//         if mouse_button_input.pressed(MouseButton::Right) {
+//             if !pan.is_panning {
+//                 pan.is_panning = true;
+//                 pan.last_position = cursor_window_position.0;
+//             } else {
+//                 if let Some(cursor_position) = cursor_window_position.0 {
+//                     let delta = cursor_position - pan.last_position;
+//                     let rotation_speed = 0.003;
+//                     let yaw = Quat::from_rotation_y(-delta.x * rotation_speed);
+//                     let pitch = Quat::from_rotation_x(-delta.y * rotation_speed);
+//                     transform.rotation = yaw * transform.rotation; // Yaw around global Y axis
+//                     transform.rotation = transform.rotation * pitch; // Pitch around local X axis
+//                     pan.last_position = cursor_position;
+//                 }
+//             }
+//         } else {
+//             pan.is_panning = false;
+//         }
+//     }
+// }
 
 fn cursor_system(
-    mut cursor_world_position: ResMut<CursorWorldPosition>,
     mut cursor_window_position: ResMut<CursorWindowPosition>,
     window_query: Query<&Window, With<PrimaryWindow>>,
-    camera_query: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
 ) {
-    let (camera, camera_transform) = camera_query.single();
     let window = window_query.single();
 
     if let Some(cursor_position) = window.cursor_position() {
         cursor_window_position.0 = cursor_position;
-
-        if let Some(world_position) = camera
-            .viewport_to_world(camera_transform, cursor_position)
-            .map(|ray| ray.origin.truncate())
-        {
-            cursor_world_position.0 = world_position;
-        }
     }
 }

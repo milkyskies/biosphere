@@ -1,12 +1,14 @@
 use bevy::{
-    input::mouse::MouseWheel, prelude::*, sprite::MaterialMesh2dBundle, window::PrimaryWindow,
+    input::mouse::MouseWheel, math::primitives::Sphere, prelude::*, render::mesh::shape,
+    sprite::MaterialMesh2dBundle, window::PrimaryWindow,
 };
 
 mod camera;
 mod stepping;
 
 const ORGANISM_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
-const WORLD_SIZE: Vec2 = Vec2::new(1024.0, 1024.0);
+// const WORLD_SIZE: Vec2 = Vec2::new(1024.0, 1024.0);
+const WORLD_RADIUS: f32 = 100.0; // Half of your original WORLD_SIZE for a radius
 
 fn main() {
     App::new()
@@ -33,45 +35,56 @@ fn main() {
 struct Organism;
 
 #[derive(Component, Deref, DerefMut)]
-struct Velocity(Vec2);
+struct Velocity(Vec3);
 
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let organism_mesh_handle = meshes.add(Circle::default());
-    let organism_material_handle = materials.add(ORGANISM_COLOR);
+    let organism_mesh_handle = meshes.add(Mesh::from(Sphere { radius: 0.5 }));
+    let organism_material_handle = materials.add(StandardMaterial {
+        base_color: ORGANISM_COLOR,
+        ..default()
+    });
+
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            color: Color::WHITE,
+            illuminance: 10000.0, // Adjust the illuminance as needed
+            ..default()
+        },
+        transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4)),
+        ..default()
+    });
 
     (0..5000).for_each(|_| {
-        commands.spawn((
-            MaterialMesh2dBundle {
-                mesh: organism_mesh_handle.clone().into(),
+        let rand_direction = Vec3::new(
+            rand::random::<f32>() * 2.0 - 1.0,
+            rand::random::<f32>() * 2.0 - 1.0,
+            rand::random::<f32>() * 2.0 - 1.0,
+        )
+        .normalize();
+        let rand_distance = rand::random::<f32>().sqrt() * WORLD_RADIUS; // sqrt for uniform distribution
+        let position = rand_direction * rand_distance;
+
+        commands
+            .spawn(PbrBundle {
+                mesh: organism_mesh_handle.clone(),
                 material: organism_material_handle.clone(),
-                transform: Transform::from_translation(Vec3::new(
-                    rand::random::<f32>() * WORLD_SIZE.x - WORLD_SIZE.x / 2.0,
-                    rand::random::<f32>() * WORLD_SIZE.y - WORLD_SIZE.y / 2.0,
-                    0.0,
-                ))
-                .with_scale(Vec3::new(
-                    rand::random::<f32>() * 0.5 + 0.5,
-                    rand::random::<f32>() * 0.5 + 0.5,
-                    1.0,
-                )),
+                transform: Transform::from_translation(position)
+                    .with_scale(Vec3::splat(rand::random::<f32>() * 0.5 + 0.5)),
                 ..default()
-            },
-            Organism,
-            Velocity(Vec2::new(
-                rand::random::<f32>() * 2.0 - 1.0,
-                rand::random::<f32>() * 2.0 - 1.0,
-            )),
-        ));
+            })
+            .insert(Organism)
+            .insert(Velocity(
+                rand_direction * (rand::random::<f32>() * 2.0 - 1.0),
+            ));
     });
 }
 
 fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
     for (mut transform, velocity) in &mut query {
-        transform.translation.x += velocity.x * time.delta_seconds();
-        transform.translation.y += velocity.y * time.delta_seconds();
+        transform.translation += velocity.0 * time.delta_seconds();
     }
 }
