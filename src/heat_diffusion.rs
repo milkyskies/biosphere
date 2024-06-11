@@ -112,6 +112,7 @@ fn heat_diffusion(
                 let heat_flux = heat_flux_grid[x][y];
                 let new_temp =
                     temp.0 + (heat_flux / (TILE_MASS * TILE_HEAT_CAPACITY)) * time.delta_seconds();
+
                 new_temperatures[x][y] = new_temp.clamp(MINIMUM_HEAT, MAXIMUM_HEAT);
             }
         }
