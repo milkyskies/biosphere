@@ -41,6 +41,7 @@ impl Plugin for SteppingPlugin {
 
         // create our stepping resource
         let mut stepping = Stepping::new();
+
         for label in &self.schedule_labels {
             stepping.add_schedule(*label);
         }
