@@ -1,7 +1,7 @@
 use bevy::{prelude::*, utils::info};
 
-const GRID_WIDTH: usize = 16;
-const GRID_HEIGHT: usize = 16;
+const GRID_WIDTH: usize = 1;
+const GRID_HEIGHT: usize = 2;
 const CELL_SIZE: f32 = 64.0;
 const INITIAL_TEMPERATURE: f32 = 50.0;
 const TILE_MASS: f32 = 0.01;
@@ -48,11 +48,6 @@ fn setup(mut commands: Commands) {
                 ))
                 .insert(SpriteBundle {
                     sprite: Sprite {
-                        color: Color::rgb(
-                            random_temperature / 100.0,
-                            0.0,
-                            1.0 - random_temperature / 100.0,
-                        ),
                         custom_size: Some(Vec2::new(CELL_SIZE, CELL_SIZE)),
                         ..Default::default()
                     },
@@ -78,17 +73,17 @@ fn heat_diffusion(mut query: Query<(&GridPosition, &mut Temperature)>, time: Res
     let mut new_temperatures = vec![vec![INITIAL_TEMPERATURE; GRID_HEIGHT]; GRID_WIDTH];
     let mut heat_flux_grid = vec![vec![0.0; GRID_HEIGHT]; GRID_WIDTH];
 
-    for (position, temp) in query.iter() {
+    for (grid_position, temp) in query.iter() {
         for (dx, dy) in [(1, 0), (0, 1)].iter() {
-            let neighbor_x = position.x as isize + dx;
-            let neighbor_y = position.y as isize + dy;
+            let neighbor_x = grid_position.x as isize + dx;
+            let neighbor_y = grid_position.y as isize + dy;
 
             if let Some((_, neighbor_temp)) = query.iter().find(|(neighbor_pos, _)| {
                 neighbor_pos.x == neighbor_x as usize && neighbor_pos.y == neighbor_y as usize
             }) {
                 let flux = calculate_heat_flux(temp.0, neighbor_temp.0);
 
-                heat_flux_grid[position.x][position.y] -= flux;
+                heat_flux_grid[grid_position.x][grid_position.y] -= flux;
                 heat_flux_grid[neighbor_x as usize][neighbor_y as usize] += flux;
             }
         }
