@@ -1,6 +1,8 @@
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
+use heat_diffusion::HeatDiffusionPlugin;
 
 mod camera;
+mod heat_diffusion;
 mod stepping;
 
 const ORGANISM_COLOR: Color = Color::rgba(0.2, 0.8, 0.5, 0.6);
@@ -16,6 +18,7 @@ fn main() {
                 .at(Val::Percent(35.0), Val::Percent(50.0)),
         )
         .add_plugins(camera::CameraPlugin)
+        .add_plugins(heat_diffusion::HeatDiffusionPlugin)
         .insert_resource(ClearColor(Color::rgb_u8(200, 205, 225)))
         .add_systems(Startup, setup)
         .add_systems(
@@ -40,7 +43,6 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let organism_mesh_handle = meshes.add(Circle::default());
-    // let organism_material_handle = materials.add(ORGANISM_COLOR); // Semi-transparent
 
     (0..5000).for_each(|i| {
         let position = Vec3::new(
