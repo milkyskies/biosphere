@@ -40,13 +40,13 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let organism_mesh_handle = meshes.add(Circle::default());
-    let organism_material_handle = materials.add(ORGANISM_COLOR); // Semi-transparent
+    // let organism_material_handle = materials.add(ORGANISM_COLOR); // Semi-transparent
 
-    (0..5000).for_each(|_| {
+    (0..5000).for_each(|i| {
         let position = Vec3::new(
             rand::random::<f32>() * WORLD_SIZE.x - WORLD_SIZE.x / 2.0,
             rand::random::<f32>() * WORLD_SIZE.y - WORLD_SIZE.y / 2.0,
-            0.0,
+            i as f32,
         );
 
         let scale = Vec3::new(
@@ -56,9 +56,17 @@ fn setup(
         );
 
         let velocity = Vec2::new(
-            rand::random::<f32>() * 2.0 - 1.0,
-            rand::random::<f32>() * 2.0 - 1.0,
+            rand::random::<f32>() * 16.0 - 8.0,
+            rand::random::<f32>() * 16.0 - 8.0,
         );
+
+        let color_variation = Color::rgba(
+            (ORGANISM_COLOR.r() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
+            (ORGANISM_COLOR.g() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
+            (ORGANISM_COLOR.b() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
+            ORGANISM_COLOR.a(),
+        );
+        let organism_material_handle = materials.add(color_variation);
 
         commands.spawn((
             MaterialMesh2dBundle {
