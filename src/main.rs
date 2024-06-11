@@ -43,7 +43,7 @@ fn setup(
     let organism_mesh_handle = meshes.add(Circle::default());
     let organism_material_handle = materials.add(ORGANISM_COLOR);
 
-    (0..5000).for_each(|_| {
+    (0..500000).for_each(|_| {
         commands.spawn((
             MaterialMesh2dBundle {
                 mesh: organism_mesh_handle.clone().into(),
