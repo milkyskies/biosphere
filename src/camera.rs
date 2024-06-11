@@ -48,7 +48,7 @@ fn handle_zoom(
     for ev in scroll_evr.read() {
         for (mut transform, mut zoom) in &mut query {
             zoom.0 *= 1.0 - ev.y * 0.1;
-            zoom.0 = zoom.0.clamp(0.1, 10.0);
+            zoom.0 = zoom.0.clamp(0.05, 10.0);
             transform.scale = Vec3::splat(zoom.0);
         }
     }

@@ -1,11 +1,9 @@
-use bevy::{
-    input::mouse::MouseWheel, prelude::*, sprite::MaterialMesh2dBundle, window::PrimaryWindow,
-};
+use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 
 mod camera;
 mod stepping;
 
-const ORGANISM_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
+const ORGANISM_COLOR: Color = Color::rgba(0.2, 0.8, 0.5, 0.6);
 const WORLD_SIZE: Vec2 = Vec2::new(1024.0, 1024.0);
 
 fn main() {
@@ -18,6 +16,7 @@ fn main() {
                 .at(Val::Percent(35.0), Val::Percent(50.0)),
         )
         .add_plugins(camera::CameraPlugin)
+        .insert_resource(ClearColor(Color::rgb_u8(200, 205, 225)))
         .add_systems(Startup, setup)
         .add_systems(
             FixedUpdate,
@@ -41,30 +40,35 @@ fn setup(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let organism_mesh_handle = meshes.add(Circle::default());
-    let organism_material_handle = materials.add(ORGANISM_COLOR);
+    let organism_material_handle = materials.add(ORGANISM_COLOR); // Semi-transparent
 
-    (0..500000).for_each(|_| {
+    (0..5000).for_each(|_| {
+        let position = Vec3::new(
+            rand::random::<f32>() * WORLD_SIZE.x - WORLD_SIZE.x / 2.0,
+            rand::random::<f32>() * WORLD_SIZE.y - WORLD_SIZE.y / 2.0,
+            0.0,
+        );
+
+        let scale = Vec3::new(
+            rand::random::<f32>() * 4.0 + 4.0,
+            rand::random::<f32>() * 4.0 + 4.0,
+            1.0,
+        );
+
+        let velocity = Vec2::new(
+            rand::random::<f32>() * 2.0 - 1.0,
+            rand::random::<f32>() * 2.0 - 1.0,
+        );
+
         commands.spawn((
             MaterialMesh2dBundle {
                 mesh: organism_mesh_handle.clone().into(),
                 material: organism_material_handle.clone(),
-                transform: Transform::from_translation(Vec3::new(
-                    rand::random::<f32>() * WORLD_SIZE.x - WORLD_SIZE.x / 2.0,
-                    rand::random::<f32>() * WORLD_SIZE.y - WORLD_SIZE.y / 2.0,
-                    0.0,
-                ))
-                .with_scale(Vec3::new(
-                    rand::random::<f32>() * 0.5 + 0.5,
-                    rand::random::<f32>() * 0.5 + 0.5,
-                    1.0,
-                )),
+                transform: Transform::from_translation(position).with_scale(scale),
                 ..default()
             },
             Organism,
-            Velocity(Vec2::new(
-                rand::random::<f32>() * 2.0 - 1.0,
-                rand::random::<f32>() * 2.0 - 1.0,
-            )),
+            Velocity(velocity),
         ));
     });
 }
