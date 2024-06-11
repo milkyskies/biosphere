@@ -3,19 +3,20 @@ use noise::{NoiseFn, Perlin};
 
 const GRID_WIDTH: usize = 32;
 const GRID_HEIGHT: usize = 32;
-const CELL_SIZE: f32 = 64.0;
+const CELL_SIZE: f32 = 16.0;
 const INITIAL_TEMPERATURE: f32 = 50.0;
-const TILE_MASS: f32 = 0.01;
+const TILE_MASS: f32 = 0.5;
 const TILE_HEAT_CAPACITY: f32 = 1.0;
-const HEAT_TRANSFER_RATE: f32 = 0.001; // Adjust this value to control the rate
 const MINIMUM_HEAT: f32 = 0.0;
 const MAXIMUM_HEAT: f32 = 100.0;
+const CHUNK_SIZE: usize = 8;
 
 pub struct HeatDiffusionPlugin;
 
 impl Plugin for HeatDiffusionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
+        app.insert_resource(CurrentChunk { x: 0, y: 0 })
+            .add_systems(Startup, setup)
             .add_systems(FixedUpdate, (heat_diffusion, visualize_temperature));
     }
 }
@@ -29,9 +30,15 @@ struct GridPosition {
     y: usize,
 }
 
+#[derive(Resource)]
+struct CurrentChunk {
+    x: usize,
+    y: usize,
+}
+
 fn setup(mut commands: Commands) {
     let perlin = Perlin::new(rand::random::<u32>());
-    let scale = 0.1; // Adjust the scale to control the noise frequency
+    let scale = 0.01;
 
     for x in 0..GRID_WIDTH {
         for y in 0..GRID_HEIGHT {
@@ -65,36 +72,70 @@ fn calculate_heat_flux(temp1: f32, temp2: f32) -> f32 {
     thermal_conductivity * (temp1 - temp2)
 }
 
-fn heat_diffusion(mut query: Query<(&GridPosition, &mut Temperature)>, time: Res<Time>) {
+fn heat_diffusion(
+    mut query: Query<(&GridPosition, &mut Temperature)>,
+    time: Res<Time>,
+    mut current_chunk: ResMut<CurrentChunk>,
+) {
     let mut new_temperatures = vec![vec![INITIAL_TEMPERATURE; GRID_HEIGHT]; GRID_WIDTH];
     let mut heat_flux_grid = vec![vec![0.0; GRID_HEIGHT]; GRID_WIDTH];
 
-    for (grid_position, temperature) in query.iter() {
-        for (dx, dy) in [(1, 0), (0, 1)].iter() {
-            let neighbor_x = grid_position.x as isize + dx;
-            let neighbor_y = grid_position.y as isize + dy;
+    let start_x = current_chunk.x * CHUNK_SIZE;
+    let start_y = current_chunk.y * CHUNK_SIZE;
+    let end_x = (start_x + CHUNK_SIZE).min(GRID_WIDTH);
+    let end_y = (start_y + CHUNK_SIZE).min(GRID_HEIGHT);
 
-            if let Some((_, neighbor_temp)) = query.iter().find(|(neighbor_pos, _)| {
-                neighbor_pos.x == neighbor_x as usize && neighbor_pos.y == neighbor_y as usize
-            }) {
-                let flux = calculate_heat_flux(temperature.0, neighbor_temp.0);
+    for x in start_x..end_x {
+        for y in start_y..end_y {
+            if let Some((_, temperature)) = query.iter().find(|(pos, _)| pos.x == x && pos.y == y) {
+                for (dx, dy) in [(1, 0), (0, 1)].iter() {
+                    let neighbor_x = x as isize + dx;
+                    let neighbor_y = y as isize + dy;
 
-                heat_flux_grid[grid_position.x][grid_position.y] -= flux;
-                heat_flux_grid[neighbor_x as usize][neighbor_y as usize] += flux;
+                    if let Some((_, neighbor_temp)) = query.iter().find(|(neighbor_pos, _)| {
+                        neighbor_pos.x == neighbor_x as usize
+                            && neighbor_pos.y == neighbor_y as usize
+                    }) {
+                        let flux = calculate_heat_flux(temperature.0, neighbor_temp.0);
+
+                        heat_flux_grid[x][y] -= flux;
+                        heat_flux_grid[neighbor_x as usize][neighbor_y as usize] += flux;
+                    }
+                }
             }
         }
     }
 
-    for (pos, temp) in query.iter() {
-        let heat_flux = heat_flux_grid[pos.x][pos.y];
-        let new_temp =
-            temp.0 + (heat_flux / (TILE_MASS * TILE_HEAT_CAPACITY)) * 0.001 * time.delta_seconds();
-
-        new_temperatures[pos.x][pos.y] = new_temp.clamp(MINIMUM_HEAT, MAXIMUM_HEAT);
+    for x in start_x..end_x {
+        for y in start_y..end_y {
+            if let Some((_, temp)) = query.iter().find(|(pos, _)| pos.x == x && pos.y == y) {
+                let heat_flux = heat_flux_grid[x][y];
+                let new_temp =
+                    temp.0 + (heat_flux / (TILE_MASS * TILE_HEAT_CAPACITY)) * time.delta_seconds();
+                new_temperatures[x][y] = new_temp.clamp(MINIMUM_HEAT, MAXIMUM_HEAT);
+            }
+        }
     }
 
-    for (pos, mut temperature) in query.iter_mut() {
-        temperature.0 = new_temperatures[pos.x][pos.y];
+    for x in start_x..end_x {
+        for y in start_y..end_y {
+            if let Some((_, mut temperature)) =
+                query.iter_mut().find(|(pos, _)| pos.x == x && pos.y == y)
+            {
+                temperature.0 = new_temperatures[x][y];
+            }
+        }
+    }
+
+    current_chunk.x += 1;
+
+    if current_chunk.x * CHUNK_SIZE >= GRID_WIDTH {
+        current_chunk.x = 0;
+        current_chunk.y += 1;
+
+        if current_chunk.y * CHUNK_SIZE >= GRID_HEIGHT {
+            current_chunk.y = 0;
+        }
     }
 }
 
@@ -103,32 +144,5 @@ fn visualize_temperature(mut query: Query<(&Temperature, &mut Sprite)>) {
         let temperature_ratio = (temp.0) / (100.0);
 
         sprite.color = Color::rgb(temperature_ratio, 0.0, 1.0 - temperature_ratio);
-
-        // text.sections.clear();
-
-        // text.sections.push(TextSection::new(
-        //     format!("{:.1}", temp.0),
-        //     TextStyle {
-        //         color: Color::rgb(1.0, 1.0, 1.0),
-        //         ..Default::default()
-        //     },
-        // ));
     }
 }
-
-// fn visualize_temperature(mut query: Query<(&Temperature, &mut Text)>) {
-//     for (temp, mut text) in query.iter_mut() {
-//         // let temperature_ratio = (temp.0 - ABSOLUTE_ZERO) / (MAXIMUM_HEAT - ABSOLUTE_ZERO);
-
-//         // sprite.color = Color::rgb(temperature_ratio, 0.0, 1.0 - temperature_ratio);
-//         text.sections.clear();
-
-//         text.sections.push(TextSection::new(
-//             format!("{:.1}", temp.0),
-//             TextStyle {
-//                 color: Color::rgb(0.2, 0.2, 0.2),
-//                 ..Default::default()
-//             },
-//         ));
-//     }
-// }
