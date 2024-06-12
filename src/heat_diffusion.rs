@@ -187,7 +187,7 @@ fn calculate_heat_diffusion(
 fn apply_heat_diffusion(
     mut query: Query<(&GridPosition, &mut Temperature), Without<DebugGuy>>,
     time: Res<Time>,
-    heat_flux_grid: Res<HeatFluxGrid>,
+    mut heat_flux_grid: ResMut<HeatFluxGrid>,
     current_chunk: Res<CurrentChunk>,
 ) {
     if current_chunk.x != 0 || current_chunk.y != 0 {
@@ -210,6 +210,8 @@ fn apply_heat_diffusion(
     for (pos, mut temperature) in query.iter_mut() {
         temperature.0 = new_temperatures[pos.x][pos.y];
     }
+
+    reset_heat_flux_grid(&mut heat_flux_grid);
 }
 
 fn debug_calculate_heat_diffusion(
@@ -258,7 +260,7 @@ fn debug_calculate_heat_diffusion(
 fn debug_apply_heat_diffusion(
     mut query: Query<(&GridPosition, &mut Temperature), With<DebugGuy>>,
     time: Res<Time>,
-    heat_flux_grid: ResMut<DebugHeatFluxGrid>,
+    mut heat_flux_grid: ResMut<DebugHeatFluxGrid>,
     current_chunk: Res<DebugCurrentChunk>,
 ) {
     if current_chunk.x != 0 || current_chunk.y != 0 {
@@ -280,6 +282,24 @@ fn debug_apply_heat_diffusion(
 
     for (pos, mut temperature) in query.iter_mut() {
         temperature.0 = new_temperatures[pos.x][pos.y];
+    }
+
+    reset_heat_flux_grid_debug(&mut heat_flux_grid);
+}
+
+fn reset_heat_flux_grid(heat_flux_grid: &mut HeatFluxGrid) {
+    for row in &mut heat_flux_grid.grid {
+        for cell in row {
+            *cell = 0.0;
+        }
+    }
+}
+
+fn reset_heat_flux_grid_debug(heat_flux_grid: &mut DebugHeatFluxGrid) {
+    for row in &mut heat_flux_grid.grid {
+        for cell in row {
+            *cell = 0.0;
+        }
     }
 }
 
