@@ -146,24 +146,31 @@ fn calculate_heat_diffusion(
     mut current_chunk: ResMut<CurrentChunk>,
     mut heat_flux_grid: ResMut<HeatFluxGrid>,
 ) {
+    // Calculate the starting and ending indices for the current chunk
     let start_x = current_chunk.x * CHUNK_SIZE;
     let start_y = current_chunk.y * CHUNK_SIZE;
     let end_x = (start_x + CHUNK_SIZE).min(GRID_WIDTH);
     let end_y = (start_y + CHUNK_SIZE).min(GRID_HEIGHT);
 
+    // Iterate over each cell in the chunk
     for x in start_x..end_x {
         for y in start_y..end_y {
+            // Find the temperature component of the current cell
             if let Some((_, temperature)) = query.iter().find(|(pos, _)| pos.x == x && pos.y == y) {
+                // Check the neighboring cells in the east and south directions
                 for (dx, dy) in [(1, 0), (0, 1)].iter() {
                     let neighbor_x = x as isize + dx;
                     let neighbor_y = y as isize + dy;
 
+                    // Find the temperature component of the neighboring cell
                     if let Some((_, neighbor_temp)) = query.iter().find(|(neighbor_pos, _)| {
                         neighbor_pos.x == neighbor_x as usize
                             && neighbor_pos.y == neighbor_y as usize
                     }) {
+                        // Calculate the heat flux between the current cell and its neighbor
                         let flux = calculate_heat_flux(temperature.0, neighbor_temp.0);
 
+                        // Update the heat flux grid resource for both the current cell and the neighbor
                         heat_flux_grid.grid[x][y] -= flux;
                         heat_flux_grid.grid[neighbor_x as usize][neighbor_y as usize] += flux;
                     }
@@ -172,12 +179,11 @@ fn calculate_heat_diffusion(
         }
     }
 
+    // Move to the next chunk, wrapping around if necessary
     current_chunk.x += 1;
-
     if current_chunk.x * CHUNK_SIZE >= GRID_WIDTH {
         current_chunk.x = 0;
         current_chunk.y += 1;
-
         if current_chunk.y * CHUNK_SIZE >= GRID_HEIGHT {
             current_chunk.y = 0;
         }
@@ -190,13 +196,16 @@ fn apply_heat_diffusion(
     mut heat_flux_grid: ResMut<HeatFluxGrid>,
     current_chunk: Res<CurrentChunk>,
 ) {
+    // Only apply heat diffusion if we are processing the first chunk (meaning that a full cycle has been completed)
     if current_chunk.x != 0 || current_chunk.y != 0 {
         return;
     }
 
+    // Prepare a grid to store the new temperatures
     let mut new_temperatures: Vec<Vec<f32>> =
         vec![vec![INITIAL_TEMPERATURE; GRID_HEIGHT]; GRID_WIDTH];
 
+    // Calculate the new temperature for each cell based on the heat flux
     for (pos, temp) in query.iter() {
         let heat_flux = heat_flux_grid.grid[pos.x][pos.y];
         let new_temp = temp.0
@@ -204,13 +213,16 @@ fn apply_heat_diffusion(
                 * HEAT_TRANSFER_SPEED
                 * time.delta_seconds();
 
+        // Clamp the new temperature to the valid range and store it
         new_temperatures[pos.x][pos.y] = new_temp.clamp(MINIMUM_HEAT, MAXIMUM_HEAT);
     }
 
+    // Update the actual temperatures of the grid tiles with the new temperatures
     for (pos, mut temperature) in query.iter_mut() {
         temperature.0 = new_temperatures[pos.x][pos.y];
     }
 
+    // Reset the heat flux grid after updating the temperatures
     reset_heat_flux_grid(&mut heat_flux_grid);
 }
 
