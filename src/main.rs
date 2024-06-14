@@ -4,7 +4,7 @@ mod camera;
 mod heat_diffusion;
 mod stepping;
 
-const ORGANISM_COLOR: Color = Color::rgba(0.2, 0.8, 0.5, 0.6);
+const ORGANISM_COLOR: Color = Color::srgba(0.2, 0.8, 0.5, 0.6);
 const GRID_WIDTH: usize = 32;
 const GRID_HEIGHT: usize = 32;
 const CELL_SIZE: f32 = 32.0;
@@ -30,7 +30,7 @@ fn main() {
             cell_size: CELL_SIZE,
             world_size: WORLD_SIZE,
         })
-        .insert_resource(ClearColor(Color::rgb_u8(200, 205, 225)))
+        .insert_resource(ClearColor(Color::srgb(0.8, 0.78, 0.88)))
         .add_systems(Startup, setup)
         .add_systems(
             FixedUpdate,
@@ -38,7 +38,7 @@ fn main() {
                 // `chain`ing systems together runs them in order
                 .chain(),
         )
-        .add_systems(Update, (bevy::window::close_on_esc))
+        .add_systems(Update, (bevy::window::close_when_requested))
         .run();
 }
 
@@ -73,11 +73,13 @@ fn setup(
             rand::random::<f32>() * 16.0 - 8.0,
         );
 
-        let color_variation = Color::rgba(
-            (ORGANISM_COLOR.r() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
-            (ORGANISM_COLOR.g() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
-            (ORGANISM_COLOR.b() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
-            ORGANISM_COLOR.a(),
+        let linear_color: LinearRgba = ORGANISM_COLOR.into();
+
+        let color_variation = Color::srgba(
+            (linear_color.red + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
+            (linear_color.green + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
+            (linear_color.blue + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
+            linear_color.alpha,
         );
         let organism_material_handle = materials.add(color_variation);
 
