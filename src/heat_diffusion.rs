@@ -11,8 +11,9 @@ const HEAT_TRANSFER_SPEED: f32 = 1.0;
 const TILE_HEAT_CAPACITY: f32 = 1.0;
 const MINIMUM_HEAT: f32 = 0.0;
 const MAXIMUM_HEAT: f32 = 100.0;
-const CHUNK_SIZE: usize = 16;
+const CHUNK_SIZE: usize = 16; // Make sure this is divisible by GRID_WIDTH and GRID_HEIGHT
 const CHUNK_CONSTANT: usize = 256;
+const CHUNKING_FACTOR: f32 = (CHUNK_CONSTANT as f32 / (CHUNK_SIZE.pow(2) as f32)) as f32;
 
 pub struct HeatDiffusionPlugin;
 
@@ -100,7 +101,10 @@ fn calculate_heat_diffusion(
     mut heat_flux_grid: ResMut<HeatFluxGrid>,
     mut processed_tile_count: ResMut<ProcessedTileCount>,
 ) {
-    let chunking_factor = (CHUNK_CONSTANT as f32 / (CHUNK_SIZE.pow(2) as f32)) as f32;
+    let mut temperature_grid = vec![vec![0.0; GRID_HEIGHT]; GRID_WIDTH];
+    for (pos, temperature) in query.iter() {
+        temperature_grid[pos.x][pos.y] = temperature.0;
+    }
 
     // Calculate the starting and ending indices for the current chunk
     let start_x = current_chunk.x * CHUNK_SIZE;
@@ -111,26 +115,26 @@ fn calculate_heat_diffusion(
     // Iterate over each cell in the chunk
     for x in start_x..end_x {
         for y in start_y..end_y {
-            // Find the temperature component of the current cell
-            if let Some((_, temperature)) = query.iter().find(|(pos, _)| pos.x == x && pos.y == y) {
-                // Check the neighboring cells in the east and south directions
-                for (dx, dy) in [(1, 0), (0, 1)].iter() {
-                    let neighbor_x = x as isize + dx;
-                    let neighbor_y = y as isize + dy;
+            let current_temp = temperature_grid[x][y];
 
-                    // Find the temperature component of the neighboring cell
-                    if let Some((_, neighbor_temp)) = query.iter().find(|(neighbor_pos, _)| {
-                        neighbor_pos.x == neighbor_x as usize
-                            && neighbor_pos.y == neighbor_y as usize
-                    }) {
-                        // Calculate the heat flux between the current cell and its neighbor
-                        let flux =
-                            calculate_heat_flux(temperature.0, neighbor_temp.0) * chunking_factor;
+            // Check the neighboring cells in the east and south directions
+            for (dx, dy) in [(1, 0), (0, 1)].iter() {
+                let neighbor_x = x as isize + dx;
+                let neighbor_y = y as isize + dy;
 
-                        // Update the heat flux grid resource for both the current cell and the neighbor
-                        heat_flux_grid.grid[x][y] -= flux;
-                        heat_flux_grid.grid[neighbor_x as usize][neighbor_y as usize] += flux;
-                    }
+                if neighbor_x >= 0
+                    && neighbor_x < GRID_WIDTH as isize
+                    && neighbor_y >= 0
+                    && neighbor_y < GRID_HEIGHT as isize
+                {
+                    let neighbor_temp = temperature_grid[neighbor_x as usize][neighbor_y as usize];
+
+                    // Calculate the heat flux between the current cell and its neighbor
+                    let flux = calculate_heat_flux(current_temp, neighbor_temp) * CHUNKING_FACTOR;
+
+                    // Update the heat flux grid resource for both the current cell and the neighbor
+                    heat_flux_grid.grid[x][y] -= flux;
+                    heat_flux_grid.grid[neighbor_x as usize][neighbor_y as usize] += flux;
                 }
             }
 
