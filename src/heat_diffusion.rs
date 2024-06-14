@@ -2,16 +2,17 @@ use crate::WORLD_SIZE;
 use bevy::prelude::*;
 use noise::{NoiseFn, Perlin};
 
-const GRID_WIDTH: usize = 33;
+const GRID_WIDTH: usize = 32;
 const GRID_HEIGHT: usize = 32;
 const CELL_SIZE: f32 = 32.0;
 const INITIAL_TEMPERATURE: f32 = 50.0;
-const TILE_MASS: f32 = 1.0;
-const HEAT_TRANSFER_SPEED: f32 = 0.1;
+const TILE_MASS: f32 = 0.5;
+const HEAT_TRANSFER_SPEED: f32 = 1.0;
 const TILE_HEAT_CAPACITY: f32 = 1.0;
 const MINIMUM_HEAT: f32 = 0.0;
 const MAXIMUM_HEAT: f32 = 100.0;
 const CHUNK_SIZE: usize = 16;
+const CHUNK_CONSTANT: usize = 256;
 
 pub struct HeatDiffusionPlugin;
 
@@ -21,6 +22,7 @@ impl Plugin for HeatDiffusionPlugin {
             .insert_resource(HeatFluxGrid {
                 grid: vec![vec![0.0; GRID_HEIGHT]; GRID_WIDTH],
             })
+            .insert_resource(ProcessedTileCount(0))
             .add_systems(Startup, setup)
             .add_systems(
                 FixedUpdate,
@@ -46,10 +48,12 @@ struct CurrentChunk {
 }
 
 #[derive(Resource)]
-
 struct HeatFluxGrid {
     grid: Vec<Vec<f32>>,
 }
+
+#[derive(Resource)]
+struct ProcessedTileCount(usize);
 
 fn setup(mut commands: Commands) {
     let perlin = Perlin::new(rand::random::<u32>());
@@ -81,23 +85,22 @@ fn setup(mut commands: Commands) {
             ));
         }
     }
-
-    let x_shift = GRID_WIDTH as f32 * CELL_SIZE * 1.5;
 }
 
-fn calculate_heat_flux(temp1: f32, temp2: f32, chunking_factor: f32) -> f32 {
+fn calculate_heat_flux(temp1: f32, temp2: f32) -> f32 {
     let temp_mid = (temp1 + temp2) / 2.0;
     let thermal_conductivity = 0.6065 - 0.00122 * temp_mid + 0.0000063 * temp_mid.powi(2);
 
-    thermal_conductivity * (temp1 - temp2) * chunking_factor
+    thermal_conductivity * (temp1 - temp2)
 }
 
 fn calculate_heat_diffusion(
     query: Query<(&GridPosition, &mut Temperature)>,
     mut current_chunk: ResMut<CurrentChunk>,
     mut heat_flux_grid: ResMut<HeatFluxGrid>,
+    mut processed_tile_count: ResMut<ProcessedTileCount>,
 ) {
-    let chunking_factor = (GRID_WIDTH * GRID_HEIGHT / CHUNK_SIZE ^ 2) as f32;
+    let chunking_factor = (CHUNK_CONSTANT as f32 / (CHUNK_SIZE.pow(2) as f32)) as f32;
 
     // Calculate the starting and ending indices for the current chunk
     let start_x = current_chunk.x * CHUNK_SIZE;
@@ -122,7 +125,7 @@ fn calculate_heat_diffusion(
                     }) {
                         // Calculate the heat flux between the current cell and its neighbor
                         let flux =
-                            calculate_heat_flux(temperature.0, neighbor_temp.0, chunking_factor);
+                            calculate_heat_flux(temperature.0, neighbor_temp.0) * chunking_factor;
 
                         // Update the heat flux grid resource for both the current cell and the neighbor
                         heat_flux_grid.grid[x][y] -= flux;
@@ -130,6 +133,8 @@ fn calculate_heat_diffusion(
                     }
                 }
             }
+
+            processed_tile_count.0 += 1;
         }
     }
 
@@ -148,10 +153,10 @@ fn apply_heat_diffusion(
     mut query: Query<(&GridPosition, &mut Temperature)>,
     time: Res<Time>,
     mut heat_flux_grid: ResMut<HeatFluxGrid>,
-    current_chunk: Res<CurrentChunk>,
+    mut processed_tile_count: ResMut<ProcessedTileCount>,
 ) {
     // Only apply heat diffusion if we are processing the first chunk (meaning that a full cycle has been completed)
-    if current_chunk.x != 0 || current_chunk.y != 0 {
+    if processed_tile_count.0 != GRID_WIDTH * GRID_HEIGHT {
         return;
     }
 
@@ -178,6 +183,8 @@ fn apply_heat_diffusion(
 
     // Clear the heat flux grid
     heat_flux_grid.grid = vec![vec![0.0; GRID_HEIGHT]; GRID_WIDTH];
+
+    processed_tile_count.0 = 0;
 }
 
 fn visualize_temperature(mut query: Query<(&Temperature, &mut Sprite)>) {
