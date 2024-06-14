@@ -5,7 +5,14 @@ mod heat_diffusion;
 mod stepping;
 
 const ORGANISM_COLOR: Color = Color::rgba(0.2, 0.8, 0.5, 0.6);
-const WORLD_SIZE: Vec2 = Vec2::new(1024.0, 1024.0);
+const GRID_WIDTH: usize = 32;
+const GRID_HEIGHT: usize = 32;
+const CELL_SIZE: f32 = 32.0;
+
+const WORLD_SIZE: Vec2 = Vec2::new(
+    GRID_WIDTH as f32 * CELL_SIZE,
+    GRID_HEIGHT as f32 * CELL_SIZE,
+);
 
 fn main() {
     App::new()
@@ -17,7 +24,12 @@ fn main() {
                 .at(Val::Percent(35.0), Val::Percent(50.0)),
         )
         .add_plugins(camera::CameraPlugin)
-        .add_plugins(heat_diffusion::HeatDiffusionPlugin)
+        .add_plugins(heat_diffusion::HeatDiffusionPlugin {
+            grid_width: GRID_WIDTH,
+            grid_height: GRID_HEIGHT,
+            cell_size: CELL_SIZE,
+            world_size: WORLD_SIZE,
+        })
         .insert_resource(ClearColor(Color::rgb_u8(200, 205, 225)))
         .add_systems(Startup, setup)
         .add_systems(
@@ -43,43 +55,43 @@ fn setup(
 ) {
     let organism_mesh_handle = meshes.add(Circle::default());
 
-    // (0..5000).for_each(|i| {
-    //     let position = Vec3::new(
-    //         rand::random::<f32>() * WORLD_SIZE.x - WORLD_SIZE.x / 2.0,
-    //         rand::random::<f32>() * WORLD_SIZE.y - WORLD_SIZE.y / 2.0,
-    //         i as f32,
-    //     );
+    (0..5000).for_each(|i| {
+        let position = Vec3::new(
+            rand::random::<f32>() * WORLD_SIZE.x - WORLD_SIZE.x / 2.0,
+            rand::random::<f32>() * WORLD_SIZE.y - WORLD_SIZE.y / 2.0,
+            i as f32,
+        );
 
-    //     let scale = Vec3::new(
-    //         rand::random::<f32>() * 4.0 + 4.0,
-    //         rand::random::<f32>() * 4.0 + 4.0,
-    //         1.0,
-    //     );
+        let scale = Vec3::new(
+            rand::random::<f32>() * 4.0 + 4.0,
+            rand::random::<f32>() * 4.0 + 4.0,
+            1.0,
+        );
 
-    //     let velocity = Vec2::new(
-    //         rand::random::<f32>() * 16.0 - 8.0,
-    //         rand::random::<f32>() * 16.0 - 8.0,
-    //     );
+        let velocity = Vec2::new(
+            rand::random::<f32>() * 16.0 - 8.0,
+            rand::random::<f32>() * 16.0 - 8.0,
+        );
 
-    //     let color_variation = Color::rgba(
-    //         (ORGANISM_COLOR.r() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
-    //         (ORGANISM_COLOR.g() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
-    //         (ORGANISM_COLOR.b() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
-    //         ORGANISM_COLOR.a(),
-    //     );
-    //     let organism_material_handle = materials.add(color_variation);
+        let color_variation = Color::rgba(
+            (ORGANISM_COLOR.r() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
+            (ORGANISM_COLOR.g() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
+            (ORGANISM_COLOR.b() + rand::random::<f32>() * 0.2 - 0.1).clamp(0.0, 1.0),
+            ORGANISM_COLOR.a(),
+        );
+        let organism_material_handle = materials.add(color_variation);
 
-    //     commands.spawn((
-    //         MaterialMesh2dBundle {
-    //             mesh: organism_mesh_handle.clone().into(),
-    //             material: organism_material_handle.clone(),
-    //             transform: Transform::from_translation(position).with_scale(scale),
-    //             ..default()
-    //         },
-    //         Organism,
-    //         Velocity(velocity),
-    //     ));
-    // });
+        commands.spawn((
+            MaterialMesh2dBundle {
+                mesh: organism_mesh_handle.clone().into(),
+                material: organism_material_handle.clone(),
+                transform: Transform::from_translation(position).with_scale(scale),
+                ..default()
+            },
+            Organism,
+            Velocity(velocity),
+        ));
+    });
 }
 
 fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
