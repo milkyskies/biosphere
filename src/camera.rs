@@ -1,4 +1,10 @@
-use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
+use bevy::{
+    input::{gestures::*, keyboard::KeyboardInput, mouse::MouseWheel},
+    prelude::*,
+    window::PrimaryWindow,
+};
+
+pub struct CameraPlugin;
 
 #[derive(Component)]
 struct MainCamera;
@@ -18,14 +24,35 @@ struct CursorWorldPosition(Vec2);
 #[derive(Resource, Default)]
 struct CursorWindowPosition(Vec2);
 
-pub struct CameraPlugin;
+#[derive(Resource, Debug, PartialEq)]
+enum InputDevice {
+    Mouse,
+    Touchpad,
+}
+
+impl Default for InputDevice {
+    fn default() -> Self {
+        InputDevice::Mouse
+    }
+}
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(CursorWorldPosition::default())
             .insert_resource(CursorWindowPosition::default())
+            .insert_resource(InputDevice::default())
             .add_systems(Startup, setup_camera)
-            .add_systems(Update, (handle_zoom, handle_panning, cursor_system));
+            .add_systems(
+                Update,
+                (
+                    set_input_device,
+                    handle_scroll_zoom,
+                    handle_scroll_pan,
+                    handle_pinch_zoom,
+                    handle_click_pan,
+                    cursor_system,
+                ),
+            );
     }
 }
 
@@ -41,20 +68,56 @@ fn setup_camera(mut commands: Commands) {
     ));
 }
 
-fn handle_zoom(
-    mut query: Query<(&mut Transform, &mut CameraZoom), With<Camera>>,
+fn handle_scroll_zoom(
+    mut query: Query<(&mut Transform, &mut CameraZoom), With<MainCamera>>,
     mut scroll_evr: EventReader<MouseWheel>,
+    input_device: Res<InputDevice>,
 ) {
-    for ev in scroll_evr.read() {
-        for (mut transform, mut zoom) in &mut query {
-            zoom.0 *= 1.0 - ev.y * 0.1;
+    if *input_device != InputDevice::Mouse {
+        return;
+    }
+
+    for event in scroll_evr.read() {
+        for (mut transform, mut zoom) in query.iter_mut() {
+            zoom.0 *= 1.0 - event.y * 0.1;
             zoom.0 = zoom.0.clamp(0.05, 10.0);
             transform.scale = Vec3::splat(zoom.0);
         }
     }
 }
 
-fn handle_panning(
+fn handle_pinch_zoom(
+    mut query: Query<(&mut Transform, &mut CameraZoom), With<MainCamera>>,
+    mut pinch_gesture_evr: EventReader<PinchGesture>,
+) {
+    for event in pinch_gesture_evr.read() {
+        let pinch_scale = event.0;
+
+        for (mut transform, mut zoom) in query.iter_mut() {
+            zoom.0 -= pinch_scale;
+            transform.scale = Vec3::splat(zoom.0);
+        }
+    }
+}
+
+fn handle_scroll_pan(
+    mut query: Query<&mut Transform, With<MainCamera>>,
+    mut scroll_evr: EventReader<MouseWheel>,
+    input_device: Res<InputDevice>,
+) {
+    if *input_device != InputDevice::Touchpad {
+        return;
+    }
+
+    for event in scroll_evr.read() {
+        for mut transform in query.iter_mut() {
+            transform.translation.x -= event.x;
+            transform.translation.y += event.y;
+        }
+    }
+}
+
+fn handle_click_pan(
     mut cursor_moved_events: EventReader<CursorMoved>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     cursor_window_position: Res<CursorWindowPosition>,
@@ -99,5 +162,13 @@ fn cursor_system(
         {
             cursor_world_position.0 = world_position;
         }
+    }
+}
+
+fn set_input_device(mut commands: Commands, keyboard_input: Res<ButtonInput<KeyCode>>) {
+    if keyboard_input.just_pressed(KeyCode::KeyM) {
+        commands.insert_resource(InputDevice::Mouse);
+    } else if keyboard_input.just_pressed(KeyCode::KeyT) {
+        commands.insert_resource(InputDevice::Touchpad);
     }
 }
