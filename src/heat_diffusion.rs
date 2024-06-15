@@ -94,7 +94,7 @@ fn setup(mut commands: Commands, config: Res<HeatDiffusionConfig>) {
                     transform: Transform::from_translation(Vec3::new(
                         x as f32 * config.cell_size + offset_x - config.world_size.x / 2.0,
                         y as f32 * config.cell_size + offset_y - config.world_size.y / 2.0,
-                        -1.0,
+                        0.0,
                     )),
                     ..Default::default()
                 },
@@ -212,6 +212,6 @@ fn visualize_temperature(mut query: Query<(&Temperature, &mut Sprite)>) {
     for (temp, mut sprite) in query.iter_mut() {
         let temperature_ratio = (temp.0) / (100.0);
 
-        sprite.color = Color::rgb(temperature_ratio, 0.0, 1.0 - temperature_ratio);
+        sprite.color = Color::srgb(temperature_ratio, 0.0, 1.0 - temperature_ratio);
     }
 }

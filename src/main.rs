@@ -59,7 +59,7 @@ fn setup(
         let position = Vec3::new(
             rand::random::<f32>() * WORLD_SIZE.x - WORLD_SIZE.x / 2.0,
             rand::random::<f32>() * WORLD_SIZE.y - WORLD_SIZE.y / 2.0,
-            i as f32,
+            0.0,
         );
 
         let scale = Vec3::new(
