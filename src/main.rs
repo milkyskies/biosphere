@@ -5,8 +5,8 @@ mod heat_diffusion;
 mod stepping;
 
 const ORGANISM_COLOR: Color = Color::srgba(0.2, 0.8, 0.5, 0.6);
-const GRID_WIDTH: usize = 32;
-const GRID_HEIGHT: usize = 32;
+const GRID_WIDTH: usize = 64;
+const GRID_HEIGHT: usize = 64;
 const CELL_SIZE: f32 = 32.0;
 
 const WORLD_SIZE: Vec2 = Vec2::new(
@@ -55,7 +55,7 @@ fn setup(
 ) {
     let organism_mesh_handle = meshes.add(Circle::default());
 
-    (0..5000).for_each(|i| {
+    (0..5000).for_each(|_| {
         let position = Vec3::new(
             rand::random::<f32>() * WORLD_SIZE.x - WORLD_SIZE.x / 2.0,
             rand::random::<f32>() * WORLD_SIZE.y - WORLD_SIZE.y / 2.0,
